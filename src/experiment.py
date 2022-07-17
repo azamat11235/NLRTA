@@ -8,33 +8,35 @@ from math import ceil
 import algorithms
 
 class Experiment:
-    def __init__(self, tensor, svdrList=None, hoRanks=None, ttRanks=None):
+    def __init__(self, tensor, ttSvdrList=[], hoSvdrList=[], hoRanks=[], ttRanks=[]):
         self._tensor = tensor
-        self._svdrList = svdrList
         self._itersNum = None
 
         self._initialTTSVD = None
         self._ttApproximations = []
-        self._ttInfo = [] # [Info(), Info(), ...]
+        self._ttInfo = []
         self._ttTimes = []
         self._ttRanks = ttRanks
+        self._ttSvdrList = ttSvdrList
 
         self._initialHOSVD = None
         self._hoApproximations = []
-        self._hoInfo = [] # [Info(), Info(), ...]
+        self._hoInfo = []
         self._hoTimes = []
         self._hoRanks = hoRanks
+        self._hoSvdrList = hoSvdrList
 
     def run(self, ttsvd=True, hosvd=True, itersNum=100, convergenceInfo=True, saveRuntimes=False, verbose=True):
-        if self._svdrList is None:
+        if self._ttSvdrList is None and self._hoSvdrList is None:
             print('svdrList is None. Use obj.setSvdrList(svdrList).')
             return
         self._itersNum = itersNum
-        line = '-' * 35
+        line = '-' * 36
 
         algNames = []
         infoList = []
         times = []
+        svdrList = []
         if ttsvd and self._ttRanks is not None:
             algNames.append('TT-SVD')
             self._ttApproximations = []
@@ -42,6 +44,7 @@ class Experiment:
             infoList.append(self._ttInfo)
             if saveRuntimes: self._ttTimes = []
             times.append(self._ttTimes)
+            svdrList.append(self._ttSvdrList)
         if hosvd and self._hoRanks is not None:
             algNames.append('HOSVD')
             self._hoApproximations = []
@@ -49,52 +52,56 @@ class Experiment:
             infoList.append(self._hoInfo)
             if saveRuntimes: self._hoTimes = []
             times.append(self._hoTimes)
+            svdrList.append(self._hoSvdrList)
         
         for k in range(len(algNames)):
             algName = algNames[k]
             if verbose:
                 print(algName)
                 print(line)
-            for i in range(len(self._svdrList)):
+            for i in range(len(svdrList[k])):
                 info = Info() if convergenceInfo else None
                 t0 = time()
                 if algName == 'TT-SVD':
-                    g_list = algorithms.myTTSVD(self._tensor, self._ttRanks, self._svdrList[i], iters_num=itersNum, info=info)
+                    g_list = algorithms.myTTSVD(self._tensor, self._ttRanks, svdrList[k][i], iters_num=itersNum, info=info)
                     t1 = time()
                     self._ttApproximations.append(algorithms.restoreTensor_ttsvd(g_list))
                 else: # HOSVD
-                    g, u_list = algorithms.myHOSVD(self._tensor, self._hoRanks, self._svdrList[i], iters_num=itersNum, info=info)
+                    g, u_list = algorithms.myHOSVD(self._tensor, self._hoRanks, svdrList[k][i], iters_num=itersNum, info=info)
                     t1 = time()
                     self._hoApproximations.append(algorithms.restoreTensor_hosvd(g, u_list))
                 infoList[k].append(info)
                 if saveRuntimes: times[k].append(t1 - t0)
                 if verbose:
-                    print('%-23s | %6.2f s.' % (self._svdrList[i].getName(), t1-t0))
+                    print('%-24s | %6.2f s.' % (svdrList[k][i].getName(), t1-t0))
             if verbose: print(line)
     
     def timeit(self, ttsvd=True, hosvd=True, itersNum=100, verbose=True):
-        if self._svdrList is None:
+        if self._ttSvdrList is None and self._hoSvdrList is None:
             print('svdrList is None. Use obj.setSvdrList(svdrList).')
             return
         self._itersNum = itersNum
-        line = '-' * 35
+        line = '-' * 36
 
         algNames = []
         times = []
         algs = []
         ranksList = []
+        svdrList = []
         if ttsvd and self._ttRanks is not None:
             algNames.append('TT-SVD')
             self._ttTimes = []
             times.append(self._ttTimes)
             algs.append(algorithms.myTTSVD)
             ranksList.append(self._ttRanks)
+            svdrList.append(self._ttSvdrList)
         if hosvd and self._hoRanks is not None:
             algNames.append('HOSVD')
             self._hoTimes = []
             times.append(self._hoTimes)
             algs.append(algorithms.myTTSVD)
             ranksList.append(self._hoRanks)
+            svdrList.append(self._hoSvdrList)
         
         for k in range(len(algNames)):
             algName = algNames[k]
@@ -103,13 +110,13 @@ class Experiment:
             if verbose:
                 print(algName)
                 print(line)
-            for i in range(len(self._svdrList)):
+            for i in range(len(svdrList[k])):
                 t0 = time()
-                alg(self._tensor, ranks, self._svdrList[i], iters_num=itersNum)
+                alg(self._tensor, ranks, svdrList[k][i], iters_num=itersNum)
                 t1 = time()
                 times[k].append(t1 - t0)
                 if verbose:
-                    print('%-23s | %6.2f s.' % (self._svdrList[i].getName(), t1-t0))
+                    print('%-23s | %6.2f s.' % (svdrList[k][i].getName(), t1-t0))
             if verbose: print(line)
 
     def runInitialSvd(self, ttsvd=True, hosvd=True, verbose=True):
@@ -134,7 +141,7 @@ class Experiment:
             approximations.append(self._initialHOSVD)
             ranks.append(self._hoRanks)
         if verbose:
-            line = '-' * 39
+            line = '-' * 40
             for i in range(len(algNames)):
                 algName = algNames[i]
                 a = self._tensor
@@ -142,40 +149,43 @@ class Experiment:
                 if verbose:
                     print(algName)
                     print(line)
-                print('%-27s | %9.5f' % ('time (s.)', times[i]))
-                print('%-27s | %9.5f' % ('negative elements (fro)', np.linalg.norm(ar[ar < 0])))
-                print('%-27s | %9.5f' % ('negative elements (che)', np.max(abs(ar[ar < 0]), initial=0)))
+                print('%-28s | %9.5f' % ('time (s.)', times[i]))
+                print('%-28s | %9.5f' % ('negative elements (fro)', np.linalg.norm(ar[ar < 0])))
+                print('%-28s | %9.5f' % ('negative elements (che)', np.max(abs(ar[ar < 0]), initial=0)))
                 neg_count = (ar < 0).sum()
-                print('%-27s | %9.5f' % ('negative elements (density)', neg_count/(np.prod(ar.shape))))
-                print('%-27s | %9.5f' % ('relative error (fro)', np.linalg.norm(a - ar)/np.linalg.norm(a)))
-                print('%-27s | %9.5f' % ('relative error (che)', np.max(abs(a - ar)/ np.max(abs(a)))))
-                print('%-27s | %9.5f' % ('r2_score', r2_score(a.flatten(), ar.flatten())))
-                print('%-27s | %9.2f' % ('compression', compute_compression(a.shape, ranks[i])))
+                print('%-28s | %9.5f' % ('negative elements (density)', neg_count/(np.prod(ar.shape))))
+                print('%-28s | %9.5f' % ('relative error (fro)', np.linalg.norm(a - ar)/np.linalg.norm(a)))
+                print('%-28s | %9.5f' % ('relative error (che)', np.max(abs(a - ar)/ np.max(abs(a)))))
+                print('%-28s | %9.5f' % ('r2_score', r2_score(a.flatten(), ar.flatten())))
+                print('%-28s | %9.2f' % ('compression', compute_compression(a.shape, ranks[i])))
                 print(line)
     
     def printErrors(self, ttsvd=True, hosvd=True):
         algNames = []
         approximationsList = []
+        svdrList = []
         if ttsvd and self._ttApproximations:
             algNames.append('TT-SVD')
             approximationsList.append(self._ttApproximations)
+            svdrList.append(self._ttSvdrList)
         if hosvd and self._hoApproximations:
             algNames.append('HOSVD')
             approximationsList.append(self._hoApproximations)
+            svdrList.append(self._hoSvdrList)
 
         line = '-' * 84
         tensorFro = np.linalg.norm(self._tensor)
         tensorChe = np.max(abs(self._tensor))
 
         for k in range(len(algNames)):
-            print('| %-23s | %s (fro) | %s (che) | %s |' % (algNames[k], 'relative error', 'relative error', 'r2_score'))
+            print('| %-24s | %s (fro) | %s (che) | %s |' % (algNames[k], 'relative error', 'relative error', 'r2_score'))
             print(line)
             for i in range(len(approximationsList[k])):
                 approximation = approximationsList[k][i]
                 fro = np.linalg.norm(self._tensor - approximation) / tensorFro
                 che = np.max(abs(self._tensor - approximation)) / tensorChe
                 r2 = r2_score(self._tensor.flatten(), approximation.flatten())
-                print('| %-23s | %20.5f | %20.5f | %8.6f |' % (self._svdrList[i].getName(), fro, che, r2))
+                print('| %-24s | %20.5f | %20.5f | %8.6f |' % (svdrList[k][i].getName(), fro, che, r2))
             print(line)
 
     def plotConvergence(self, ttsvd=True, hosvd=True, figsize=(12, 32), yticks=None, wspace=0.2, hspace=0.4):
@@ -186,9 +196,9 @@ class Experiment:
             yticks = [10**(-x) for x in range(-1, 6, 1)]
 
         infoList = []
-        if ttsvd and self._ttInfo is not None:
+        if ttsvd and self._ttInfo:
             infoList.append(self._ttInfo)
-        if hosvd and self._hoInfo is not None:
+        if hosvd and self._hoInfo:
             infoList.append(self._hoInfo)
 
         if len(infoList) > 0:
@@ -218,25 +228,28 @@ class Experiment:
     def plotRuntimes(self, ttsvd=True, hosvd=True, figsize=(6,6), wspace=0.01, rotation=45):
         algNames = []
         times = []
-        if ttsvd and self._ttTimes:
-            algNames.append('TT-SVD')
-            times.append(self._ttTimes)
+        svdrList = []
         if hosvd and self._hoTimes:
             algNames.append('HOSVD')
             times.append(self._hoTimes)
+            svdrList.append(self._hoSvdrList)
+        if ttsvd and self._ttTimes:
+            algNames.append('TT-SVD')
+            times.append(self._ttTimes)
+            svdrList.append(self._ttSvdrList)
         ncols = len(algNames)
         if ncols == 0: return
         fig, ax = plt.subplots(1, ncols, figsize=figsize)
         if ncols == 1: ax = [ax] #
-        xticks_labels = [sketching.getName() for sketching in self._svdrList]
         for i in range(len(algNames)):
+            xticks_labels = ['\n'.join(sketching.getName().split(', ')) for sketching in svdrList[i]]
             ax[i].set_title(algNames[i])
             ax[i].set_ylabel('Running time (Second)')
             ax[i].tick_params(axis='both', direction='in', right=True, top=True)
             ax[i].tick_params(axis='x', rotation=rotation)
-            ax[i].set_xticks(ticks=range(len(self._svdrList)))
+            ax[i].set_xticks(ticks=range(len(svdrList[i])))
             ax[i].set_xticklabels(labels=xticks_labels, ha='right')
-            ax[i].bar(range(0, len(self._svdrList), 1), times[i], edgecolor='black')
+            ax[i].bar(range(0, len(svdrList[i]), 1), times[i], edgecolor='black')
         if ncols == 1: ax = ax[0] #
         plt.subplots_adjust(wspace=wspace)
         return fig, ax
@@ -248,15 +261,15 @@ class Experiment:
             if self._initialTTSVD is not None:
                 titles.append('Initial TT-SVD')
                 approximationsList.append(self._initialTTSVD)
-            if self._ttApproximations is not None:
-                titles += [svdr.getName() for svdr in self._svdrList]
+            if self._ttApproximations:
+                titles += [svdr.getName() for svdr in self._ttSvdrList]
                 approximationsList.extend(self._ttApproximations)
         if hosvd:
             if self._initialHOSVD is not None:
                 titles.append('Initial HOSVD')
                 approximationsList.append(self._initialHOSVD)
-            if self._hoApproximations is not None:
-                titles += [svdr.getName() for svdr in self._svdrList]
+            if self._hoApproximations:
+                titles += [svdr.getName() for svdr in self._hoSvdrList]
                 approximationsList.extend(self._hoApproximations)
 
         if len(titles) > 1:
@@ -290,7 +303,14 @@ class Experiment:
         self._tensor = tensor
     
     def setSvdrList(self, svdrList):
-        self._svdrList = svdrList
+        self._ttSvdrList = svdrList
+        self._hoSvdrList = svdrList
+    
+    def set_ttSvdrList(self, svdrList):
+        self._ttSvdrList = svdrList
+
+    def set_hoSvdrList(self, svdrList):
+        self._hoSvdrList = svdrList
     
     def getRanks(self):
         return {'ttRankd': self._ttRanks, 'hoRanks': self._hoRanks}
