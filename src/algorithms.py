@@ -1,6 +1,7 @@
 import numpy as np
 import sketching
 
+
 def unfold(tensor, mode):
     return np.reshape(np.moveaxis(tensor, mode, 0), (tensor.shape[mode], -1))
 
@@ -19,7 +20,7 @@ def mode_product(tensor, matrix, mode):
     return fold(matrix.T @ tensor_mode, mode, new_shape)
 
 
-def HOSVD(tensor, ranks):
+def STHOSVD(tensor, ranks):
     S = tensor.copy()
     U_list = []
     for k in range(len(tensor.shape)):
@@ -53,9 +54,9 @@ def TTSVD(tensor, r):
     return G_list
 
 
-def myHOSVD(tensor, ranks, svdr, iters_num=100, left=0, right=None, info=None): # alternating projections
+def NSTHOSVD(tensor, ranks, svdr, iters_num=100, left=0, right=None, info=None): # alternating projections
     if info is not None:
-        info.init('HOSVD', svdr.getName(), l=left, r=right)
+        info.init('NSTHOSVD', svdr.getName(), l=left, r=right)
     for i in range(iters_num):
         S = tensor.copy()
         U_list = []
@@ -74,9 +75,9 @@ def myHOSVD(tensor, ranks, svdr, iters_num=100, left=0, right=None, info=None): 
             info.update(tensor)
     return S, U_list
 
-def myTTSVD(tensor, ranks, svdr, iters_num=100, left=0, right=None, info=None): # alternating projections
+def NTTSVD(tensor, ranks, svdr, iters_num=100, left=0, right=None, info=None): # alternating projections
     if info is not None:
-        info.init('TT-SVD', svdr.getName(), l=left, r=right)
+        info.init('NTTSVD', svdr.getName(), l=left, r=right)
     n = np.array(tensor.shape)
     for i in range(iters_num):
         G_list = []

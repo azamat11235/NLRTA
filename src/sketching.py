@@ -1,7 +1,8 @@
 import numpy as np
 import scipy as sp
 
-def TestMatrix(m, n, distribution='normal', p=None):
+
+def TestMatrix(m, n, distribution='rademacher', p=None):
     if distribution == 'normal':
         res = np.random.normal(size=(m, n))
     elif distribution == 'rademacher' and p is None:
@@ -20,24 +21,24 @@ def SVD(X, r):
     Ur, Sr, Vhr = svdr(X, r)
     return Ur, Sr, Vhr
 
-def HMT(X, rank, p, k, distr='normal', rho=None):
-    m, n = X.shape
+def HMT(X, rank, p, k, distr='rademacher', rho=None):
+    n = X.shape[1]
 
     Psi = TestMatrix(n, k, distr, rho)
     Z1 = X @ Psi
-    Q, R = np.linalg.qr(Z1)
-    for j in range(p):
+    Q, _ = np.linalg.qr(Z1)
+    for _ in range(p):
         Z2 = Q.T @ X
-        Q, R = np.linalg.qr(Z2.T)
+        Q, _ = np.linalg.qr(Z2.T)
         Z1 = X @ Q
-        Q, R = np.linalg.qr(Z1)
+        Q, _ = np.linalg.qr(Z1)
     Z2 = Q.T @ X
     Ur, Sr, Vhr = svdr(Z2, rank)
     Ur = Q @ Ur
     
     return Ur, Sr, Vhr
 
-def Tropp(X, rank, k, l, distr='normal', rho=None):
+def Tropp(X, rank, k, l, distr='rademacher', rho=None):
     m, n = X.shape
         
     Psi = TestMatrix(n, k, distr, rho)
@@ -52,7 +53,7 @@ def Tropp(X, rank, k, l, distr='normal', rho=None):
     
     return Ur, Sr, Vhr
 
-def GN(X, rank, l, distr='normal', rho=None):
+def GN(X, rank, l, distr='rademacher', rho=None):
     m, n = X.shape
 
     Psi = TestMatrix(n, rank, distr, rho)
@@ -67,8 +68,10 @@ def GN(X, rank, l, distr='normal', rho=None):
 
 
 def getAlgName(alg, **params):
-    if alg in ['SVD', 'Tangent']:
+    if alg == 'Tangent':
         return alg
+    if alg == 'SVD':
+        return alg + '$_r$'
     distr = params.get('distr')
     d = 'N' if distr=='normal' else 'Rad'
     if 'rho' in params.keys():
@@ -122,9 +125,6 @@ class Svdr:
 
     def getParams(self):
         return self._params
-    
-    def getSketchingName(self):
-        return self._svdr.__name__
     
     def getName(self):
         return getAlgName(self._svdr.__name__, **self._params)
