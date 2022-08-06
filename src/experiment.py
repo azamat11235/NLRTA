@@ -20,15 +20,15 @@ class Experiment:
 
         self._ttsvdApproximation = None
         self._nttsvdApproximations = None
-        self._nttsvdInfo = []
-        self._nttsvdTimes = []
+        self._nttsvdInfo = None
+        self._nttsvdTimes = None
         self._ttRank = ttRank
         self._nttsvdTruncatedSvdList = nttsvdTruncatedSvdList
 
         self._sthosvdApproximation = None
         self._nsthosvdApproximations = None
-        self._nsthosvdInfo = []
-        self._nsthosvdTimes = []
+        self._nsthosvdInfo = None
+        self._nsthosvdTimes = None
         self._tuckerRank = tuckerRank
         self._nsthosvdTruncatedSvdList = nsthosvdTruncatedSvdList
 
