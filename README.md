@@ -1,1 +1,1 @@
-# sketching
+# Low-rank nonnegative tensor approximation via alternating projections and sketching
