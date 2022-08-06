@@ -20,15 +20,15 @@ class Experiment:
 
         self._ttsvdApproximation = None
         self._nttsvdApproximations = None
-        self._nttsvdInfo = None
-        self._nttsvdTimes = None
+        self._nttsvdInfo = []
+        self._nttsvdTimes = []
         self._ttRank = ttRank
         self._nttsvdTruncatedSvdList = nttsvdTruncatedSvdList
 
         self._sthosvdApproximation = None
         self._nsthosvdApproximations = None
-        self._nsthosvdInfo = None
-        self._nsthosvdTimes = None
+        self._nsthosvdInfo = []
+        self._nsthosvdTimes = []
         self._tuckerRank = tuckerRank
         self._nsthosvdTruncatedSvdList = nsthosvdTruncatedSvdList
 
@@ -124,7 +124,7 @@ class Experiment:
                 if verbose:
                     print('%-23s | %6.2f s.' % (trunactedSvdList[k][i].getName(), t1-t0))
                 if not (k == len(algNames) - 1 and i == len(trunactedSvdList[k]) - 1): ##
-                    sleep(10)                                                  ##
+                    sleep(10)                                                          ##
             if verbose: print(line)
 
     def runInitialSvd(self, ttsvd=True, sthosvd=True, verbose=True):
