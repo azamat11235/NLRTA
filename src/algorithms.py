@@ -51,31 +51,23 @@ def TTSVD(tensor, r, truncatedSvd=TruncatedSvd('SVDr')):
     return G_list
 
 
-def NLRT(tensor, ranks, truncatedSvd, itersNum, info=None):
+def NLRT(tensor, ranks, truncatedSvd, itersNum, info=None): # alternating projections
     if info is not None:
         info.init('NLRT', truncatedSvd.getName())
-    tensor = tensor.copy()
-    shape = tensor.shape
-    m = len(shape)
-    Z = []
-    for _ in range(m):
-        Z.append(tensor.copy())
+    m = len(tensor.shape)
+    Z = [tensor.copy()] * m
     for _ in range(itersNum):
         # projetion onto \Omega_1
-        for i in range(m):
-            Zi = Z[i]
+        for Zi in Z:
             Zi[Zi < 0] = 0
-        Yi = Z[0]
-        for i in range(1, m):
-            Yi += Z[i]
-        Yi /= m
-        for i in range(m):
-            Z[i] = Yi.copy()
+        Yi = sum(Z) / m
         # projetion onto \Omega_2
         for i in range(m):
-            Zi = Z[i]
-            u, vh = truncatedSvd(unfold(Zi, i), ranks[i])
-            Z[i] = fold(u @ vh, i, shape)
+            u, vh = truncatedSvd(unfold(Yi, i), ranks[i])
+            Z[i] = fold(u @ vh, i, tensor.shape)
+
+        if info is not None:
+            info.update(Z)
     return Z
 
 def NSTHOSVD(tensor, ranks, truncatedSvd, itersNum, info=None): # alternating projections
