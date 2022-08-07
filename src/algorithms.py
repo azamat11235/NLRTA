@@ -27,7 +27,7 @@ def STHOSVD(tensor, ranks, truncatedSvd=TruncatedSvd('SVDr')):
         ak = unfold(S, k)
         u, vh = truncatedSvd(ak, ranks[k])
         shape = list(S.shape)
-        shape[k] = ranks[k]
+        shape[k] = min(vh.shape[1], ranks[k])
         S = fold(vh, k, shape)
         U_list.append(u)
     return S, U_list
@@ -53,22 +53,21 @@ def TTSVD(tensor, r, truncatedSvd=TruncatedSvd('SVDr')):
 
 def NLRT(tensor, ranks, truncatedSvd, itersNum, info=None): # alternating projections
     if info is not None:
-        info.init('NLRT', truncatedSvd.getName())
+        info.init('NLRT', truncatedSvd.getName(), tuckerRank=ranks)
     m = len(tensor.shape)
-    Z = [tensor.copy()] * m
+    X = [tensor.copy()] * m
     for _ in range(itersNum):
-        # projetion onto \Omega_1
-        for Zi in Z:
-            Zi[Zi < 0] = 0
-        Yi = sum(Z) / m
-        # projetion onto \Omega_2
+        # projection onto \Omega_1
+        for Xi in X:
+            Xi[Xi < 0] = 0
+        Yi = sum(X) / m
+        # projection onto \Omega_2
         for i in range(m):
             u, vh = truncatedSvd(unfold(Yi, i), ranks[i])
-            Z[i] = fold(u @ vh, i, tensor.shape)
-
+            X[i] = fold(u @ vh, i, tensor.shape)
         if info is not None:
-            info.update(Z)
-    return Z
+            info.update({'X': X, 'Yi' : Yi})
+    return X
 
 def NSTHOSVD(tensor, ranks, truncatedSvd, itersNum, info=None): # alternating projections
     if info is not None:

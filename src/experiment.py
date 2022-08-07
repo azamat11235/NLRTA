@@ -13,10 +13,10 @@ class Experiment:
                  tensor,
                  nttsvdTruncatedSvdList=None,
                  nsthosvdTruncatedSvdList=None,
+                 nlrtTruncatedSvdList=None,
                  ttRank=None,
                  tuckerRank=None):
         self._tensor = tensor
-        self._itersNum = None
 
         self._ttsvdApproximation = None
         self._nttsvdApproximations = None
@@ -32,100 +32,10 @@ class Experiment:
         self._tuckerRank = tuckerRank
         self._nsthosvdTruncatedSvdList = nsthosvdTruncatedSvdList
 
-    def run(self, itersNum, nttsvd=True, nsthosvd=True, convergenceInfo=True, saveRuntimes=False, verbose=True):
-        if not self._nttsvdTruncatedSvdList and not self._nsthosvdTruncatedSvdList:
-            print('trunactedSvdList is None. Use obj.setTrunactedSvdList(trunactedSvdList).')
-            return
-        self._itersNum = itersNum
-        line = '-' * 36
-
-        algNames = []
-        infoList = []
-        times = []
-        trunactedSvdList = []
-        if nttsvd and self._ttRank and self._nttsvdTruncatedSvdList:
-            algNames.append('NTTSVD')
-            self._nttsvdApproximations = []
-            self._nttsvdInfo = []
-            infoList.append(self._nttsvdInfo)
-            if saveRuntimes: self._nttsvdTimes = []
-            times.append(self._nttsvdTimes)
-            trunactedSvdList.append(self._nttsvdTruncatedSvdList)
-        if nsthosvd and self._tuckerRank and self._nsthosvdTruncatedSvdList:
-            algNames.append('NSTHOSVD')
-            self._nsthosvdApproximations = []
-            self._nsthosvdInfo = []
-            infoList.append(self._nsthosvdInfo)
-            if saveRuntimes: self._nsthosvdTimes = []
-            times.append(self._nsthosvdTimes)
-            trunactedSvdList.append(self._nsthosvdTruncatedSvdList)
-        
-        for k in range(len(algNames)):
-            algName = algNames[k]
-            if verbose:
-                print(algName)
-                print(line)
-            for i in range(len(trunactedSvdList[k])):
-                info = Info() if convergenceInfo else None
-                t0 = time()
-                if algName == 'NTTSVD':
-                    g_list = algorithms.NTTSVD(self._tensor, self._ttRank, trunactedSvdList[k][i], itersNum=itersNum, info=info)
-                    t1 = time()
-                    self._nttsvdApproximations.append(algorithms.restoreTensorTT(g_list))
-                else: # NSTHOSVD
-                    g, u_list = algorithms.NSTHOSVD(self._tensor, self._tuckerRank, trunactedSvdList[k][i], itersNum=itersNum, info=info)
-                    t1 = time()
-                    self._nsthosvdApproximations.append(algorithms.restoreTensorTucker(g, u_list))
-                infoList[k].append(info)
-                if saveRuntimes: times[k].append(t1 - t0)
-                if verbose:
-                    print('%-24s | %6.2f s.' % (trunactedSvdList[k][i].getName(), t1-t0))
-            if verbose: print(line)
-    
-    def time(self, itersNum, nttsvd=True, nsthosvd=True, verbose=True):
-        if self._nttsvdTruncatedSvdList is None and self._nsthosvdTruncatedSvdList is None:
-            print('trunactedSvdList is None. Use obj.setTrunactedSvdList(trunactedSvdList).')
-            return
-        self._itersNum = itersNum
-        line = '-' * 36
-
-        algNames = []
-        times = []
-        algs = []
-        ranksList = []
-        trunactedSvdList = []
-        if nttsvd and self._ttRank and self._nttsvdTruncatedSvdList:
-            algNames.append('NTTSVD')
-            self._nttsvdTimes = []
-            times.append(self._nttsvdTimes)
-            algs.append(algorithms.NTTSVD)
-            ranksList.append(self._ttRank)
-            trunactedSvdList.append(self._nttsvdTruncatedSvdList)
-        if nsthosvd and self._tuckerRank and self._nsthosvdTruncatedSvdList:
-            algNames.append('NSTHOSVD')
-            self._nsthosvdTimes = []
-            times.append(self._nsthosvdTimes)
-            algs.append(algorithms.NSTHOSVD)
-            ranksList.append(self._tuckerRank)
-            trunactedSvdList.append(self._nsthosvdTruncatedSvdList)
-        
-        for k in range(len(algNames)):
-            algName = algNames[k]
-            alg = algs[k]
-            ranks = ranksList[k]
-            if verbose:
-                print(algName)
-                print(line)
-            for i in range(len(trunactedSvdList[k])):
-                t0 = time()
-                alg(self._tensor, ranks, trunactedSvdList[k][i], itersNum=itersNum)
-                t1 = time()
-                times[k].append(t1 - t0)
-                if verbose:
-                    print('%-23s | %6.2f s.' % (trunactedSvdList[k][i].getName(), t1-t0))
-                if not (k == len(algNames) - 1 and i == len(trunactedSvdList[k]) - 1): ##
-                    sleep(10)                                                          ##
-            if verbose: print(line)
+        self._nlrtApproximations = None # [{'X': [], 'X_sthosvd': X_sthosvd}, ... ]
+        self._nlrtInfo = [] # [{'X': [info, ...], 'X_sthosvd': {...}} ...]
+        self._nlrtTimes = []
+        self._nlrtTruncatedSvdList = nlrtTruncatedSvdList
 
     def runInitialSvd(self, ttsvd=True, sthosvd=True, verbose=True):
         algNames = []
@@ -158,45 +68,184 @@ class Experiment:
                 if verbose:
                     print(algName)
                     print(line)
-                print('%-28s | %12.5f' % ('time (s.)', times[i]))
-                print('%-28s | %12f'   % ('negative elements (fro)', np.linalg.norm(ar[ar < 0])))
-                print('%-28s | %12f'   % ('negative elements (che)', np.max(abs(ar[ar < 0]), initial=0)))
+                print('%-28s | %12.5f'  % ('time (s.)', times[i]))
+                print('%-28s | %12f'    % ('negative elements (fro)', np.linalg.norm(ar[ar < 0])))
+                print('%-28s | %12f'    % ('negative elements (che)', np.max(abs(ar[ar < 0]), initial=0)))
                 print('%-28s | %12.8f'  % ('negative elements (%)', 100*neg_count/(np.prod(ar.shape))))
                 print('%-28s | %12.10f' % ('relative error (fro)', np.linalg.norm(a - ar)/np.linalg.norm(a)))
                 print('%-28s | %12.10f' % ('relative error (che)', np.max(abs(a - ar)/ np.max(abs(a)))))
                 print('%-28s | %12.10f' % ('r2_score', r2_score(a.flatten(), ar.flatten())))
-                print('%-28s | %12.2f' % ('compression', computeCompression(a.shape, ranks[i])))
+                print('%-28s | %12.2f'  % ('compression', computeCompression(a.shape, ranks[i])))
                 print(line)
+
+    def run(self, itersNum,
+                  nttsvd=True,
+                  nsthosvd=True,
+                  nlrt=True,
+                  convergenceInfo=True,
+                  saveRuntimes=False,
+                  verbose=True):
+        line = '-' * 36
+        algNames = []
+        infoList = []
+        times = []
+        truncatedSvdList = []
+        if nttsvd and self._ttRank and self._nttsvdTruncatedSvdList:
+            algNames.append('NTTSVD')
+            self._nttsvdApproximations = []
+            self._nttsvdInfo = []
+            infoList.append(self._nttsvdInfo)
+            if saveRuntimes: self._nttsvdTimes = []
+            times.append(self._nttsvdTimes)
+            truncatedSvdList.append(self._nttsvdTruncatedSvdList)
+        if nsthosvd and self._tuckerRank and self._nsthosvdTruncatedSvdList:
+            algNames.append('NSTHOSVD')
+            self._nsthosvdApproximations = []
+            self._nsthosvdInfo = []
+            infoList.append(self._nsthosvdInfo)
+            if saveRuntimes: self._nsthosvdTimes = []
+            times.append(self._nsthosvdTimes)
+            truncatedSvdList.append(self._nsthosvdTruncatedSvdList)
+        if nlrt and self._tuckerRank and self._nlrtTruncatedSvdList:
+            algNames.append('NLRT')
+            self._nlrtApproximations = []
+            self._nlrtInfo = []
+            infoList.append(self._nlrtInfo)
+            if saveRuntimes: self._nlrtTimes = []
+            times.append(self._nlrtTimes)
+            truncatedSvdList.append(self._nlrtTruncatedSvdList)
+        
+        for k in range(len(algNames)):
+            algName = algNames[k]
+            if verbose:
+                print(algName)
+                print(line)
+            for i in range(len(truncatedSvdList[k])):
+                info = Info() if convergenceInfo else None
+                t0 = time()
+                if algName == 'NTTSVD':
+                    g_list = algorithms.NTTSVD(self._tensor, self._ttRank, truncatedSvdList[k][i], itersNum=itersNum, info=info)
+                    t1 = time()
+                    self._nttsvdApproximations.append(algorithms.restoreTensorTT(g_list))
+                elif algName == 'NSTHOSVD':
+                    g, u_list = algorithms.NSTHOSVD(self._tensor, self._tuckerRank, truncatedSvdList[k][i], itersNum=itersNum, info=info)
+                    t1 = time()
+                    self._nsthosvdApproximations.append(algorithms.restoreTensorTucker(g, u_list))
+                else: # NLRT
+                    X = algorithms.NLRT(self._tensor, self._tuckerRank, truncatedSvdList[k][i], itersNum=itersNum, info=info)
+                    t1 = time()
+                    self._nlrtApproximations.append({'X': X, 'X_sthosvd': info.getXsthosvd()})
+                infoList[k].append(info)
+                if saveRuntimes: times[k].append(t1 - t0)
+                if verbose:
+                    print('%-24s | %6.2f s.' % (truncatedSvdList[k][i].getName(), t1-t0))
+            if verbose: print(line)
     
-    def printErrors(self, nttsvd=True, nsthosvd=True):
+    def time(self, itersNum,
+                   nttsvd=True,
+                   nsthosvd=True,
+                   nlrt=True,
+                   verbose=True,
+                   _sleep=10):
+
+        line = '-' * 36
+        algNames = []
+        times = []
+        algs = []
+        ranksList = []
+        truncatedSvdList = []
+        if nttsvd and self._ttRank and self._nttsvdTruncatedSvdList:
+            algNames.append('NTTSVD')
+            self._nttsvdTimes = []
+            times.append(self._nttsvdTimes)
+            algs.append(algorithms.NTTSVD)
+            ranksList.append(self._ttRank)
+            truncatedSvdList.append(self._nttsvdTruncatedSvdList)
+        if nsthosvd and self._tuckerRank and self._nsthosvdTruncatedSvdList:
+            algNames.append('NSTHOSVD')
+            self._nsthosvdTimes = []
+            times.append(self._nsthosvdTimes)
+            algs.append(algorithms.NSTHOSVD)
+            ranksList.append(self._tuckerRank)
+            truncatedSvdList.append(self._nsthosvdTruncatedSvdList)
+        if nlrt and self._tuckerRank and self._nlrtTruncatedSvdList:
+            algNames.append('NLRT')
+            self._nlrtTimes = []
+            times.append(self._nlrtTimes)
+            algs.append(algorithms.NLRT)
+            ranksList.append(self._tuckerRank)
+            truncatedSvdList.append(self._nlrtTruncatedSvdList)
+        
+        for k in range(len(algNames)):
+            algName = algNames[k]
+            alg = algs[k]
+            ranks = ranksList[k]
+            if verbose:
+                print(algName)
+                print(line)
+            for i in range(len(truncatedSvdList[k])):
+                t0 = time()
+                alg(self._tensor, ranks, truncatedSvdList[k][i], itersNum=itersNum)
+                t1 = time()
+                times[k].append(t1 - t0)
+                if verbose:
+                    print('%-23s | %6.2f s.' % (truncatedSvdList[k][i].getName(), t1-t0))
+                if _sleep and not (k == len(algNames) - 1 and i == len(truncatedSvdList[k]) - 1):
+                    sleep(_sleep)
+            if verbose: print(line)
+    
+    def printErrors(self, nttsvd=True, nsthosvd=True, nlrt=True):
         algNames = []
         approximationsList = []
-        trunactedSvdList = []
+        truncatedSvdList = []
         if nttsvd and self._nttsvdApproximations:
             algNames.append('NTTSVD')
             approximationsList.append(self._nttsvdApproximations)
-            trunactedSvdList.append(self._nttsvdTruncatedSvdList)
+            truncatedSvdList.append(self._nttsvdTruncatedSvdList)
         if nsthosvd and self._nsthosvdApproximations:
             algNames.append('NSTHOSVD')
             approximationsList.append(self._nsthosvdApproximations)
-            trunactedSvdList.append(self._nsthosvdTruncatedSvdList)
+            truncatedSvdList.append(self._nsthosvdTruncatedSvdList)
+        if nlrt and self._nlrtApproximations:
+            algNames.append('NLRT')
 
-        line = '-' * 84
+        line = '-' * 85
         tensorFro = np.linalg.norm(self._tensor)
         tensorChe = np.max(abs(self._tensor))
 
-        for k in range(len(algNames)):
-            print('| %-24s | %s (fro) | %s (che) | %s |' % (algNames[k], 'relative error', 'relative error', 'r2_score'))
-            print(line)
-            for i in range(len(approximationsList[k])):
-                approximation = approximationsList[k][i]
-                fro = np.linalg.norm(self._tensor - approximation) / tensorFro
-                che = np.max(abs(self._tensor - approximation)) / tensorChe
-                r2 = r2_score(self._tensor.flatten(), approximation.flatten())
-                print('| %-24s | %2.18f | %20.18f | %8f |' % (trunactedSvdList[k][i].getName(), fro, che, r2))
-            print(line)
+        for k, algName in enumerate(algNames):
+            if algName == 'NLRT':
+                line = '-' * 97
+                if k: print('\n', line, sep='')
+                print('| %-24s | relative error (fro) | relative error (che) | r2_score | %9s |' % (algName, 'X_i'))
+                print(line)
+                for j in range(len(self._nlrtApproximations)):
+                    X = self._nlrtApproximations[j]['X']
+                    X_sthosvd = self._nlrtApproximations[j]['X_sthosvd']
+                    for i, x in enumerate(X + [X_sthosvd]):
+                        fro = np.linalg.norm(self._tensor - x) / tensorFro
+                        che = np.max(abs(self._tensor - x)) / tensorChe
+                        r2 = r2_score(self._tensor.flatten(), x.flatten())
+                        truncatedSvdName = ' ' * 24
+                        if i == 0:
+                            truncatedSvdName = self._nlrtTruncatedSvdList[j].getName()
+                        tensorName = 'X_%d' % i
+                        if i == len(X):
+                            tensorName = 'X_sthosvd'
+                        print('| %-24s | %2.18f | %20.18f | %8f | %9s |' % (truncatedSvdName, fro, che, r2, tensorName))
+                    print(line)
+            else:
+                print('| %-24s | relative error (fro) | relative error (che) | r2_score |' % algName)
+                print(line)
+                for i in range(len(approximationsList[k])):
+                    approximation = approximationsList[k][i]
+                    fro = np.linalg.norm(self._tensor - approximation) / tensorFro
+                    che = np.max(abs(self._tensor - approximation)) / tensorChe
+                    r2 = r2_score(self._tensor.flatten(), approximation.flatten())
+                    print('| %-24s | %2.18f | %20.18f | %8f |' % (truncatedSvdList[k][i].getName(), fro, che, r2))
+                print(line)
     
-    def printNegativeElements(self, nttsvd=True, nsthosvd=True):
+    def printNegativePart(self, nttsvd=True, nsthosvd=True, nlrt=True):
         algNames = []
         infoList = []
         if nttsvd and self._nttsvdInfo:
@@ -205,28 +254,54 @@ class Experiment:
         if nsthosvd and self._nsthosvdInfo:
             algNames.append('NSTHOSVD')
             infoList.append(self._nsthosvdInfo)
+        if nlrt and self._nlrtInfo:
+            algNames.append('NLRT')
+            infoList.append(self._nlrtInfo)
 
         line = '-' * 52
 
-        for k in range(len(algNames)):
-            print('| %-24s | %s |' % (algNames[k], 'negative elements (%)'))
+        for k, algName in enumerate(algNames):
+            if algName == 'NLRT':
+                line = '-' * 64
+                if k: print('\n', line, sep='')
+                print('| %-24s | negative elements (%%) | %9s |' % (algName, 'X_i'))
+            else:
+                print('| %-24s | negative elements (%%) |' % algName)
             print(line)
             for i in range(len(infoList[k])):
-                print('| %-24s | %21.7f |' % (infoList[k][i].getTruncatedSvdName(), infoList[k][i].getConvergenceInfo()['density'][-1] * 100))
-            print(line)
+                truncatedSvdName = infoList[k][i].getTruncatedSvdName()
+                if algName == 'NLRT':
+                    convInfo = infoList[k][i].getConvergenceInfo()
+                    convInfo = convInfo['X'] + [convInfo['X_sthosvd']]
+                    for i, info in enumerate(convInfo):
+                        percentOfNegative = info['density'][-1] * 100
+                        tensorName = 'X_%d' % i
+                        if i == len(convInfo) - 1:
+                            tensorName = 'X_sthosvd'
+                        print('| %-24s | %21.7f | %9s |' % (truncatedSvdName, percentOfNegative, tensorName))
+                        if i == 0:
+                            truncatedSvdName = ' ' * 24
+                    print(line)
+                else:
+                    percentOfNegative = infoList[k][i].getConvergenceInfo()['density'][-1] * 100
+                    print('| %-24s | %21.7f |' % (truncatedSvdName, percentOfNegative))
+            if not nlrt: print(line)
     
-    def plotConvergence(self, nttsvd=True, nsthosvd=True, testMatrixName=False,
+    def plotConvergence(self,
+                        nttsvd=True,
+                        nsthosvd=True,
+                        nlrt=True,
                         figsize=None,
                         yticks=None,
                         wspace=None, hspace=None,
                         titlesize=None,
                         ticksize=None,
                         legendsize=None,
-                        legendloc=None):
+                        legendloc=None,
+                        testMatrixName=False,):
         title = 'Distance to nonnegative tensors'
         norms  = ['Chebyshev', 'Frobenius', 'Density']
         colors = ['C0', 'C1', 'C2']
-
         infoList = []
         step = 0
         if nsthosvd and self._nsthosvdInfo:
@@ -235,13 +310,17 @@ class Experiment:
         if nttsvd and self._nttsvdInfo:
             infoList.extend(self._nttsvdInfo)
             step += 1
+        if nlrt and self._nlrtInfo:
+            infoList.extend(self._nlrtInfo)
 
         if len(infoList) > 0:
             nInfo = len(infoList)
             nrows = nInfo // 2 + (nInfo % 2 != 0)
-            fig, ax = plt.subplots(nrows, 2, figsize=figsize)
+            ncols = 2 if nInfo > 1 else 1
+            fig, ax = plt.subplots(nrows, ncols, figsize=figsize)
             if nInfo <= 2: ax = [ax] #
-            if len(self._nttsvdInfo) != len(self._nsthosvdInfo):
+            if nInfo <= 1: ax = [ax] #
+            if len(self._nttsvdInfo) != len(self._nsthosvdInfo) or nlrt:
                 step = 1
             if step == 2:
                 nInfo //= 2
@@ -250,11 +329,19 @@ class Experiment:
                     i = k * step // 2
                     j = (k * step + kk)  % 2
                     info = infoList[k + kk * nInfo]
-                    algName = info.getAlgName() if testMatrixName else ',\\ '.join(info.getAlgName().split(', ')[:2])
-                    convInfo = info.getConvergenceInfo()
-                    ax[i][j].plot(range(1, self._itersNum+1), convInfo['chebyshev'], colors[0], label=norms[0])
-                    ax[i][j].plot(range(1, self._itersNum+1), convInfo['frobenius'], colors[1], label=norms[1])
-                    ax[i][j].plot(range(1, self._itersNum+1), convInfo['density'],   colors[2], label=norms[2])
+                    algName = info.getFullAlgName() if testMatrixName else ',\\ '.join(info.getFullAlgName().split(', ')[:2])
+                    info = info.getConvergenceInfo()
+                    if 'NLRT' in algName:
+                        for m, xInfo in enumerate(info['X']):
+                            itersNum = len(xInfo['frobenius'])
+                            ax[i][j].plot(range(1, itersNum+1), xInfo['frobenius'], f'C{m}', label='$\\bf{X}$$^{(i)}_%d$' % m)
+                        itersNum = len(info['X_sthosvd']['frobenius'])
+                        ax[i][j].plot(range(1, itersNum+1), info['X_sthosvd']['frobenius'], f'C{m+1}', label='$\\bf{X}$$^{(i)}_{NLRT+STHOSVD}$')
+                    else:
+                        itersNum = len(info['frobenius'])
+                        ax[i][j].plot(range(1, itersNum+1), info['chebyshev'], colors[0], label=norms[0])
+                        ax[i][j].plot(range(1, itersNum+1), info['frobenius'], colors[1], label=norms[1])
+                        ax[i][j].plot(range(1, itersNum+1), info['density'],   colors[2], label=norms[2])
                     ax[i][j].set_yscale('log')
                     if yticks is not None:
                         ax[i][j].set_yticks(yticks)
@@ -265,8 +352,11 @@ class Experiment:
                         title_ = '$\\bf{%s,\\ SVD_r}$\n%s' % (algName.split(',')[0], title)
                     else:
                         title_ = '$\\bf{%s}$\n%s' % (algName, title)
+                    if 'NLRT' in algName:
+                        title_ = '$\\bf{NLRT}$\n%s' % title
                     ax[i][j].set_title(title_, fontsize=titlesize)
             if nrows == 1: ax = ax[0] #
+            if ncols == 1: ax = ax[0] #
             plt.subplots_adjust(wspace=wspace, hspace=hspace)
             return fig, ax
     
@@ -297,7 +387,7 @@ class Experiment:
             for k in range(len(infoList)):
                 for kk in range(len(infoList[k])):
                     info = infoList[k][kk]
-                    algName = info.getAlgName() if testMatrixName else ',\\ '.join(info.getAlgName().split(', ')[:2])
+                    algName = info.getFullAlgName() if testMatrixName else ',\\ '.join(info.getFullAlgName().split(', ')[:2])
                     convInfo = info.getConvergenceInfo()
                     i = k*len(infoList[0]) + kk
                     percentOfNegElems = [100*x for x in convInfo['density']]
@@ -320,37 +410,44 @@ class Experiment:
             plt.subplots_adjust(wspace=wspace, hspace=hspace)
             return fig, ax
     
-    def plotRuntimes(self, nttsvd=True, nsthosvd=True, testMatrixName=False,
-                     figsize=None,
-                     wspace=None,
-                     rotation=None,
-                     ha='center',
-                     ylabelsize=None,
-                     titlesize=None,
-                     xticksize=None, yticksize=None,
-                     paramsNewLine=False,
-                     hideTitle=False,
-                     exclude=[]):
+    def plotRuntimes(self, nttsvd=True,
+                           nsthosvd=True,
+                           nlrt=False,
+                           testMatrixName=False,
+                           figsize=None,
+                           wspace=None,
+                           rotation=None,
+                           ha='center',
+                           ylabelsize=None,
+                           titlesize=None,
+                           xticksize=None, yticksize=None,
+                           paramsNewLine=False,
+                           hideTitle=False,
+                           exclude=[]):
         algNames = []
         times = []
-        trunactedSvdList = []
+        truncatedSvdList = []
         if nsthosvd and self._nsthosvdTimes:
             algNames.append('NSTHOSVD')
             times.append([self._nsthosvdTimes[i] for i in range(len(self._nsthosvdTimes)) if i not in exclude])
-            trunactedSvdList.append([self._nsthosvdTruncatedSvdList[i] for i in range(len(self._nsthosvdTruncatedSvdList)) if i not in exclude])
+            truncatedSvdList.append([self._nsthosvdTruncatedSvdList[i] for i in range(len(self._nsthosvdTruncatedSvdList)) if i not in exclude])
+        if nlrt and self._nlrtTimes:
+            algNames.append('NLRT')
+            times.append([self._nlrtTimes[i] for i in range(len(self._nlrtTimes)) if i not in exclude])
+            truncatedSvdList.append([self._nlrtTruncatedSvdList[i] for i in range(len(self._nlrtTruncatedSvdList)) if i not in exclude])
         if nttsvd and self._nttsvdTimes:
             algNames.append('NTTSVD')
             times.append([self._nttsvdTimes[i] for i in range(len(self._nttsvdTimes)) if i not in exclude])
-            trunactedSvdList.append([self._nttsvdTruncatedSvdList[i] for i in range(len(self._nttsvdTruncatedSvdList)) if i not in exclude])
+            truncatedSvdList.append([self._nttsvdTruncatedSvdList[i] for i in range(len(self._nttsvdTruncatedSvdList)) if i not in exclude])
         ncols = len(algNames)
         if ncols == 0: return
         fig, ax = plt.subplots(1, ncols, figsize=figsize)
         if ncols == 1: ax = [ax] #
         for i in range(len(algNames)):
             if testMatrixName:
-                xticks_labels = ['\n'.join(truncatedSvd.getName().split(', ')) for truncatedSvd in trunactedSvdList[i]]
+                xticks_labels = ['\n'.join(truncatedSvd.getName().split(', ')) for truncatedSvd in truncatedSvdList[i]]
             else:
-                xticks_labels = [truncatedSvd.getName().split(', ')[0] for truncatedSvd in trunactedSvdList[i]]
+                xticks_labels = [truncatedSvd.getName().split(', ')[0] for truncatedSvd in truncatedSvdList[i]]
                 if paramsNewLine:
                     xticks_labels = ['\n('.join(label.split('(')) for label in xticks_labels]
             if not hideTitle:
@@ -358,10 +455,10 @@ class Experiment:
             ax[i].set_ylabel('Running time (Second)', size=ylabelsize)
             ax[i].tick_params(axis='both', direction='in', right=True, top=True)
             ax[i].tick_params(axis='x', rotation=rotation)
-            ax[i].set_xticks(ticks=range(len(trunactedSvdList[i])))
+            ax[i].set_xticks(ticks=range(len(truncatedSvdList[i])))
             ax[i].tick_params(axis='y', labelsize=yticksize)
             ax[i].set_xticklabels(labels=xticks_labels, size=xticksize, ha=ha)
-            ax[i].bar(range(0, len(trunactedSvdList[i]), 1), times[i], edgecolor='black')
+            ax[i].bar(range(0, len(truncatedSvdList[i]), 1), times[i], edgecolor='black')
         if ncols == 1: ax = ax[0] #
         plt.subplots_adjust(wspace=wspace)
         return fig, ax
@@ -425,15 +522,15 @@ class Experiment:
     def setTensor(self, tensor):
         self._tensor = tensor
     
-    def setTruncatedSvdList(self, trunactedSvdList):
-        self._nttsvdTruncatedSvdList = trunactedSvdList
-        self._nsthosvdTruncatedSvdList = trunactedSvdList
+    def setTruncatedSvdList(self, truncatedSvdList):
+        self._nttsvdTruncatedSvdList = truncatedSvdList
+        self._nsthosvdTruncatedSvdList = truncatedSvdList
     
-    def set_nttsvdTruncatedSvdList(self, trunactedSvdList):
-        self._nttsvdTruncatedSvdList = trunactedSvdList
+    def set_nttsvdTruncatedSvdList(self, truncatedSvdList):
+        self._nttsvdTruncatedSvdList = truncatedSvdList
 
-    def set_nsthosvdTruncatedSvdList(self, trunactedSvdList):
-        self._nsthosvdTruncatedSvdList = trunactedSvdList
+    def set_nsthosvdTruncatedSvdList(self, truncatedSvdList):
+        self._nsthosvdTruncatedSvdList = truncatedSvdList
     
     def getRanks(self):
         return {'ttRank': self._ttRank, 'tuckerRank': self._tuckerRank}
