@@ -334,9 +334,9 @@ class Experiment:
                     if 'NLRT' in algName:
                         for m, xInfo in enumerate(info['X']):
                             itersNum = len(xInfo['frobenius'])
-                            ax[i][j].plot(range(1, itersNum+1), xInfo['frobenius'], f'C{m}', label='$\\bf{X}$$^{(i)}_%d$' % m)
+                            ax[i][j].plot(range(1, itersNum+1), xInfo['frobenius'], f'C{m}', label='$\\bf{X}$$^{\\rm (i)}_%d$' % m)
                         itersNum = len(info['X_sthosvd']['frobenius'])
-                        ax[i][j].plot(range(1, itersNum+1), info['X_sthosvd']['frobenius'], f'C{m+1}', label='$\\bf{X}$$^{(i)}_{NLRT+STHOSVD}$')
+                        ax[i][j].plot(range(1, itersNum+1), info['X_sthosvd']['frobenius'], f'C{m+1}', label='$\\bf{X}$$^{\\rm (i)}_{\\rm NLRT+STHOSVD}$')
                     else:
                         itersNum = len(info['frobenius'])
                         ax[i][j].plot(range(1, itersNum+1), info['chebyshev'], colors[0], label=norms[0])
