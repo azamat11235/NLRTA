@@ -67,5 +67,5 @@ class Info:
     def getAlgName(self):
         return self._algName
     
-    def getFullAlgName(self):
-        return ', '.join([self._algName, self._truncatedSvd])
+    def getFullAlgName(self, testMatrixName=False):
+        return ', '.join([self._algName, self.getTruncatedSvdName(testMatrixName=testMatrixName)])

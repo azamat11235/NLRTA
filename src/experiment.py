@@ -1,8 +1,8 @@
 import numpy as np
+import math
 import matplotlib.pyplot as plt
 from sklearn.metrics import r2_score
 from time import time, sleep
-from math import ceil
 
 import algorithms
 from info import Info
@@ -209,15 +209,15 @@ class Experiment:
         if nlrt and self._nlrtApproximations:
             algNames.append('NLRT')
 
-        line = '-' * 85
+        line = '-' * 96
         tensorFro = np.linalg.norm(self._tensor)
         tensorChe = np.max(abs(self._tensor))
 
         for k, algName in enumerate(algNames):
             if algName == 'NLRT':
-                line = '-' * 97
+                line = '-' * 108
                 if k: print('\n', line, sep='')
-                print('| %-24s | relative error (fro) | relative error (che) | r2_score | %9s |' % (algName, 'X_i'))
+                print('| %-24s | relative error (fro) | relative error (che) | %8s | r2_score | %9s |' % (algName, 'SNR', 'X_i'))
                 print(line)
                 for j in range(len(self._nlrtApproximations)):
                     X = self._nlrtApproximations[j]['X']
@@ -225,6 +225,7 @@ class Experiment:
                     for i, x in enumerate(X + [X_sthosvd]):
                         fro = np.linalg.norm(self._tensor - x) / tensorFro
                         che = np.max(abs(self._tensor - x)) / tensorChe
+                        snr = 10 * math.log10(1 / fro)
                         r2 = r2_score(self._tensor.flatten(), x.flatten())
                         truncatedSvdName = ' ' * 24
                         if i == 0:
@@ -232,17 +233,18 @@ class Experiment:
                         tensorName = 'X_%d' % i
                         if i == len(X):
                             tensorName = 'X_sthosvd'
-                        print('| %-24s | %2.18f | %20.18f | %8f | %9s |' % (truncatedSvdName, fro, che, r2, tensorName))
+                        print('| %-24s | %2.18f | %20.18f | %8.5f | %8f | %9s |' % (truncatedSvdName, fro, che, snr, r2, tensorName))
                     print(line)
             else:
-                print('| %-24s | relative error (fro) | relative error (che) | r2_score |' % algName)
+                print('| %-24s | relative error (fro) | relative error (che) | %8s | r2_score |' % (algName, 'SNR'))
                 print(line)
                 for i in range(len(approximationsList[k])):
                     approximation = approximationsList[k][i]
                     fro = np.linalg.norm(self._tensor - approximation) / tensorFro
                     che = np.max(abs(self._tensor - approximation)) / tensorChe
+                    snr = 10 * math.log10(1 / fro)
                     r2 = r2_score(self._tensor.flatten(), approximation.flatten())
-                    print('| %-24s | %2.18f | %20.18f | %8f |' % (truncatedSvdList[k][i].getName(), fro, che, r2))
+                    print('| %-24s | %2.18f | %20.18f | %8.5f | %8f |' % (truncatedSvdList[k][i].getName(), fro, che, snr, r2))
                 print(line)
     
     def printNegativePart(self, nttsvd=True, nsthosvd=True, nlrt=True):
@@ -258,15 +260,15 @@ class Experiment:
             algNames.append('NLRT')
             infoList.append(self._nlrtInfo)
 
-        line = '-' * 52
+        line = '-' * 106
 
         for k, algName in enumerate(algNames):
             if algName == 'NLRT':
-                line = '-' * 64
+                line = '-' * 118
                 if k: print('\n', line, sep='')
-                print('| %-24s | negative elements (%%) | %9s |' % (algName, 'X_i'))
+                print('| %-24s | negative elements (fro) | negative elements (che) |   negative elements (%%) | %9s |' % (algName, 'X_i'))
             else:
-                print('| %-24s | negative elements (%%) |' % algName)
+                print('| %-24s | negative elements (fro) | negative elements (che) |   negative elements (%%) |' % algName)
             print(line)
             for i in range(len(infoList[k])):
                 truncatedSvdName = infoList[k][i].getTruncatedSvdName()
@@ -274,19 +276,24 @@ class Experiment:
                     convInfo = infoList[k][i].getConvergenceInfo()
                     convInfo = convInfo['X'] + [convInfo['X_sthosvd']]
                     for i, info in enumerate(convInfo):
+                        fro = info['frobenius'][-1]
+                        che = info['chebyshev'][-1]
                         percentOfNegative = info['density'][-1] * 100
                         tensorName = 'X_%d' % i
                         if i == len(convInfo) - 1:
                             tensorName = 'X_sthosvd'
-                        print('| %-24s | %21.7f | %9s |' % (truncatedSvdName, percentOfNegative, tensorName))
+                        print('| %-24s | %21.21f | %21.21f | %21.21f | %9s |' % (truncatedSvdName, fro, che, percentOfNegative, tensorName))
                         if i == 0:
                             truncatedSvdName = ' ' * 24
                     print(line)
                 else:
-                    percentOfNegative = infoList[k][i].getConvergenceInfo()['density'][-1] * 100
-                    print('| %-24s | %21.7f |' % (truncatedSvdName, percentOfNegative))
-            if not nlrt: print(line)
-    
+                    convInfo = infoList[k][i].getConvergenceInfo()
+                    fro = convInfo['frobenius'][-1]
+                    che = convInfo['chebyshev'][-1]
+                    percentOfNegative = convInfo['density'][-1] * 100
+                    print('| %-24s | %21.21f | %21.21f | %21.21f |' % (truncatedSvdName, fro, che, percentOfNegative))
+            if algName != 'NLRT': print(line)
+   
     def plotConvergence(self,
                         nttsvd=True,
                         nsthosvd=True,
@@ -298,6 +305,8 @@ class Experiment:
                         ticksize=None,
                         legendsize=None,
                         legendloc=None,
+                        bbox_to_anchor=None,
+                        labelspacing=None,
                         testMatrixName=False,):
         title = 'Distance to nonnegative tensors'
         norms  = ['Chebyshev', 'Frobenius', 'Density']
@@ -332,11 +341,19 @@ class Experiment:
                     algName = info.getFullAlgName() if testMatrixName else ',\\ '.join(info.getFullAlgName().split(', ')[:2])
                     info = info.getConvergenceInfo()
                     if 'NLRT' in algName:
+                        plt.rcParams['mathtext.fontset'] = 'custom'
+                        plt.rcParams['mathtext.it'] = 'STIXGeneral:italic:bold'
+                        plt.rcParams['mathtext.bf'] = 'STIXGeneral:bold'
                         for m, xInfo in enumerate(info['X']):
                             itersNum = len(xInfo['frobenius'])
-                            ax[i][j].plot(range(1, itersNum+1), xInfo['frobenius'], f'C{m}', label='$\\bf{X}$$^{\\rm (i)}_%d$' % m)
+                            ax[i][j].plot(range(1, itersNum+1), xInfo['frobenius'], f'C{m}', label='$\\mathit{X}$$^{\\rm (i)}_%d$' % m)
                         itersNum = len(info['X_sthosvd']['frobenius'])
-                        ax[i][j].plot(range(1, itersNum+1), info['X_sthosvd']['frobenius'], f'C{m+1}', label='$\\bf{X}$$^{\\rm (i)}_{\\rm NLRT+STHOSVD}$')
+                        ax[i][j].plot(range(1, itersNum+1), info['X_sthosvd']['frobenius'], f'C{m+1}', label='$\\mathit{X}$$^{\\rm (i)}_{\\rm NLRT+STHOSVD}$')
+                        for info in self._nsthosvdInfo:
+                            if 'HMT' in info.getTruncatedSvdName():
+                                convInfo = info.getConvergenceInfo()['frobenius']
+                                ax[i][j].plot(range(1, itersNum+1), convInfo[:itersNum], f'C{m+2}', label='$\\mathit{X}$$^{\\rm (i)}_{\\rm %s}$' % info.getFullAlgName())
+                                break
                     else:
                         itersNum = len(info['frobenius'])
                         ax[i][j].plot(range(1, itersNum+1), info['chebyshev'], colors[0], label=norms[0])
@@ -345,30 +362,39 @@ class Experiment:
                     ax[i][j].set_yscale('log')
                     if yticks is not None:
                         ax[i][j].set_yticks(yticks)
-                    ax[i][j].legend(loc=legendloc, fontsize=legendsize)
+                    ax[i][j].legend(loc=legendloc,
+                                    fontsize=legendsize,
+                                    bbox_to_anchor=bbox_to_anchor,
+                                    labelspacing=labelspacing)
+                    plt.rcParams['mathtext.fontset'] = 'dejavusans'
                     ax[i][j].tick_params(axis='both', labelsize=ticksize)
                     ax[i][j].grid()
                     if 'SVD$_r$' in algName:
-                        title_ = '$\\bf{%s,\\ SVD_r}$\n%s' % (algName.split(',')[0], title)
+                        title_ = '$\\mathbf{%s,\\ SVD_r}$\n%s' % (algName.split(',')[0], title)
                     else:
-                        title_ = '$\\bf{%s}$\n%s' % (algName, title)
+                        title_ = '$\\mathbf{%s}$\n%s' % (algName, title)
                     if 'NLRT' in algName:
-                        title_ = '$\\bf{NLRT}$\n%s' % title
+                        title_ = '$\\mathbf{NLRT}$\n%s' % title
                     ax[i][j].set_title(title_, fontsize=titlesize)
             if nrows == 1: ax = ax[0] #
             if ncols == 1: ax = ax[0] #
             plt.subplots_adjust(wspace=wspace, hspace=hspace)
             return fig, ax
     
-    def plotConvergence2(self, nttsvd=True, nsthosvd=True, testMatrixName=False,
-                        figsize=None,
-                        yticks=None,
-                        wspace=None, hspace=None,
-                        titlesize=None,
-                        ticksize=None,
-                        legendsize=None,
-                        legendloc=None):
-        titles = ['Distance to nonnegative tensors', 'Percent of negative elements']
+    def plotConvergence2(self,
+                         nttsvd=True,
+                         nsthosvd=True,
+                         nlrt=True,
+                         testMatrixName=False,
+                         figsize=None,
+                         yticks=None,
+                         yticks2=None,
+                         wspace=None, hspace=None,
+                         titlesize=None,
+                         ticksize=None,
+                         legendsize=None,
+                         legendloc=None):
+        titles = ['Distance to nonnegative tensors', 'Density of negative elements']
         norms  = ['Chebyshev', 'Frobenius', 'Density']
         colors = ['C0', 'C1', 'C2']
 
@@ -390,13 +416,16 @@ class Experiment:
                     algName = info.getFullAlgName() if testMatrixName else ',\\ '.join(info.getFullAlgName().split(', ')[:2])
                     convInfo = info.getConvergenceInfo()
                     i = k*len(infoList[0]) + kk
-                    percentOfNegElems = [100*x for x in convInfo['density']]
-                    ax[i][0].plot(range(1, self._itersNum+1), convInfo['chebyshev'], colors[0], label=norms[0])
-                    ax[i][0].plot(range(1, self._itersNum+1), convInfo['frobenius'], colors[1], label=norms[1])
-                    ax[i][1].plot(range(1, self._itersNum+1), percentOfNegElems, colors[2], label=norms[2])
+                    itersNum = len(convInfo['chebyshev'])
+                    ax[i][0].plot(range(1, itersNum+1), convInfo['chebyshev'], colors[0], label=norms[0])
+                    ax[i][0].plot(range(1, itersNum+1), convInfo['frobenius'], colors[1], label=norms[1])
+                    ax[i][1].plot(range(1, itersNum+1), convInfo['density'], colors[2], label=norms[2])
                     ax[i][0].set_yscale('log')
+                    ax[i][1].set_yscale('log')
                     if yticks is not None:
                         ax[i][0].set_yticks(yticks)
+                    if yticks2 is not None:
+                        ax[i][1].set_yticks(yticks2)
                     ax[i][0].legend(loc=legendloc, fontsize=legendsize)
                     for j in range(2):
                         if 'SVD$_r$' in algName:
@@ -409,6 +438,62 @@ class Experiment:
             if nrows == 1: ax = ax[0] #
             plt.subplots_adjust(wspace=wspace, hspace=hspace)
             return fig, ax
+    
+    def plotConvergence3(self,
+                         nttsvd=True,
+                         nsthosvd=True,
+                         plotDensity=True,
+                         figsize=None,
+                         yticks=None,
+                         yticks2=None,
+                         wspace=None, hspace=None,
+                         titlesize=None,
+                         ticksize=None,
+                         legendsize=None,
+                         legendloc=None,
+                         legend2loc=None,
+                         testMatrixName=False):
+        titles = ['Distance to nonnegative tensors', 'Density of negative elements']
+        colors = ['C0', 'C1', 'C2']
+        linestyles = ['solid', 'dashed']
+        infoLists = []
+        if nsthosvd and self._nsthosvdInfo:
+            infoLists.append(self._nsthosvdInfo)
+        if nttsvd and self._nttsvdInfo:
+            infoLists.append(self._nttsvdInfo)
+
+        ncols = len(infoLists)
+        nrows = 1 + plotDensity
+        fig, ax = plt.subplots(nrows, ncols, figsize=figsize)
+        if ncols == 1 or not plotDensity: ax = [ax] #
+        for k, infoList in enumerate(infoLists):
+            algName = infoList[0].getAlgName()
+            for i, info in enumerate(infoList):
+                convInfo = info.getConvergenceInfo()
+                itersNum = len(convInfo['frobenius'])
+                label = info.getTruncatedSvdName()
+                ax[0][k].plot(range(1, itersNum+1), convInfo['frobenius'], color=f'C{i}', linestyle=linestyles[0], label=label)
+                ax[0][k].plot(range(1, itersNum+1), convInfo['chebyshev'], color=f'C{i}', linestyle=linestyles[1])
+                if plotDensity:
+                    ax[1][k].plot(range(1, itersNum+1), convInfo['density'], color=f'C{i}', label=label)
+            dummyLines = [ax[0][k].plot([],[], c="black", linestyle=linestyles[i])[0] for i in [0, 1]]
+            legend2 = ax[0][k].legend(dummyLines, ['Frobenius', 'Chebyshev'], loc=legend2loc, fontsize=legendsize)
+            ax[0][k].add_artist(legend2)    
+            for j in range(1 + plotDensity):
+                ax[j][k].legend(loc=legendloc, fontsize=legendsize)
+                ax[j][k].set_yscale('log')
+                ax[j][k].tick_params(axis='both', labelsize=ticksize)
+                ax[j][k].set_title('$\\bf{%s}$\n%s' % (algName, titles[j]), fontsize=titlesize)
+                ax[j][k].grid()
+            if yticks is not None:
+                ax[0][k].set_yticks(yticks)
+            if yticks2 is not None and plotDensity:
+                ax[1][k].set_yticks(yticks2) 
+
+        plt.subplots_adjust(wspace=wspace, hspace=hspace)
+        if ncols == 1: ax = ax[0] #
+        
+        return fig, ax
     
     def plotRuntimes(self, nttsvd=True,
                            nsthosvd=True,
@@ -463,7 +548,12 @@ class Experiment:
         plt.subplots_adjust(wspace=wspace)
         return fig, ax
     
-    def showApproximations(self, nttsvd=True, nsthosvd=True, band=0, testMatrixName=False,
+    def showApproximations(self,
+                           nttsvd=True,
+                           nsthosvd=True,
+                           nlrt=True,
+                           band=0,
+                           testMatrixName=False,
                            figsize=None,
                            ncols=3,
                            titlesize=None,
@@ -472,7 +562,7 @@ class Experiment:
         approximationsList = [self._tensor]
         titles = ['Original']
         if nttsvd:
-            if self._ttsvdApproximation:
+            if self._ttsvdApproximation is not None:
                 titles.append('TTSVD')
                 approximationsList.append(self._ttsvdApproximation)
             if self._nttsvdApproximations:
@@ -482,7 +572,7 @@ class Experiment:
                     titles += ['NTTSVD, ' + truncatedSvd.getName().split(', ')[0] for truncatedSvd in self._nttsvdTruncatedSvdList]
                 approximationsList.extend(self._nttsvdApproximations)
         if nsthosvd:
-            if self._sthosvdApproximation:
+            if self._sthosvdApproximation is not None:
                 titles.append('STHOSVD')
                 approximationsList.append(self._sthosvdApproximation)
             if self._nsthosvdApproximations:
@@ -491,9 +581,17 @@ class Experiment:
                 else:
                     titles += ['NSTHOSVD, ' + truncatedSvd.getName().split(', ')[0] for truncatedSvd in self._nsthosvdTruncatedSvdList]
                 approximationsList.extend(self._nsthosvdApproximations)
+        if nlrt and self._nlrtApproximations:
+            if len(self._nlrtApproximations) == 1:
+                titles += ['NLRT + STHOSVD']
+            elif testMatrixName:
+                titles += ['NLRT, ' + truncatedSvd.getName() for truncatedSvd in self._nlrtTruncatedSvdList]
+            else:
+                titles += ['NLRT, ' + truncatedSvd.getName().split(', ')[0] for truncatedSvd in self._nlrtTruncatedSvdList]
+            approximationsList.extend([x['X_sthosvd'] for x in self._nlrtApproximations])
 
         if len(titles) > 1:
-            m = ceil(len(titles) / ncols)
+            m = math.ceil(len(titles) / ncols)
             n = min(ncols, len(titles))
             fig, ax = plt.subplots(m, n, figsize=figsize)
             if m == 1: ax = [ax] #
