@@ -217,7 +217,7 @@ class Experiment:
             if algName == 'NLRT':
                 line = '-' * 108
                 if k: print('\n', line, sep='')
-                print('| %-24s | relative error (fro) | relative error (che) | %8s | r2_score | %9s |' % (algName, 'SNR', 'X_i'))
+                print('| %-24s | relative error (fro) | relative error (che) | %8s | r2_score | %9s |' % (algName, 'SNR (dB)', 'X_i'))
                 print(line)
                 for j in range(len(self._nlrtApproximations)):
                     X = self._nlrtApproximations[j]['X']
@@ -236,7 +236,7 @@ class Experiment:
                         print('| %-24s | %2.18f | %20.18f | %8.5f | %8f | %9s |' % (truncatedSvdName, fro, che, snr, r2, tensorName))
                     print(line)
             else:
-                print('| %-24s | relative error (fro) | relative error (che) | %8s | r2_score |' % (algName, 'SNR'))
+                print('| %-24s | relative error (fro) | relative error (che) | %8s | r2_score |' % (algName, 'SNR (dB)'))
                 print(line)
                 for i in range(len(approximationsList[k])):
                     approximation = approximationsList[k][i]
