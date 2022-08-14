@@ -68,12 +68,16 @@ class Experiment:
                 if verbose:
                     print(algName)
                     print(line)
+                rel_fro = np.linalg.norm(a - ar)/np.linalg.norm(a)
+                rel_che = np.max(abs(a - ar)/ np.max(abs(a)))
+                snr = 10 * math.log10(1 / rel_fro)
                 print('%-28s | %12.5f'  % ('time (s.)', times[i]))
                 print('%-28s | %12f'    % ('negative elements (fro)', np.linalg.norm(ar[ar < 0])))
                 print('%-28s | %12f'    % ('negative elements (che)', np.max(abs(ar[ar < 0]), initial=0)))
                 print('%-28s | %12.8f'  % ('negative elements (%)', 100*neg_count/(np.prod(ar.shape))))
-                print('%-28s | %12.10f' % ('relative error (fro)', np.linalg.norm(a - ar)/np.linalg.norm(a)))
-                print('%-28s | %12.10f' % ('relative error (che)', np.max(abs(a - ar)/ np.max(abs(a)))))
+                print('%-28s | %12.10f' % ('relative error (fro)', rel_fro))
+                print('%-28s | %12.10f' % ('relative error (che)', rel_che))
+                print('%-28s | %12.9f' % ('SNR (dB)', snr))
                 print('%-28s | %12.10f' % ('r2_score', r2_score(a.flatten(), ar.flatten())))
                 print('%-28s | %12.2f'  % ('compression', computeCompression(a.shape, ranks[i])))
                 print(line)
@@ -512,14 +516,14 @@ class Experiment:
         algNames = []
         times = []
         truncatedSvdList = []
-        if nsthosvd and self._nsthosvdTimes:
-            algNames.append('NSTHOSVD')
-            times.append([self._nsthosvdTimes[i] for i in range(len(self._nsthosvdTimes)) if i not in exclude])
-            truncatedSvdList.append([self._nsthosvdTruncatedSvdList[i] for i in range(len(self._nsthosvdTruncatedSvdList)) if i not in exclude])
         if nlrt and self._nlrtTimes:
             algNames.append('NLRT')
             times.append([self._nlrtTimes[i] for i in range(len(self._nlrtTimes)) if i not in exclude])
             truncatedSvdList.append([self._nlrtTruncatedSvdList[i] for i in range(len(self._nlrtTruncatedSvdList)) if i not in exclude])
+        if nsthosvd and self._nsthosvdTimes:
+            algNames.append('NSTHOSVD')
+            times.append([self._nsthosvdTimes[i] for i in range(len(self._nsthosvdTimes)) if i not in exclude])
+            truncatedSvdList.append([self._nsthosvdTruncatedSvdList[i] for i in range(len(self._nsthosvdTruncatedSvdList)) if i not in exclude])
         if nttsvd and self._nttsvdTimes:
             algNames.append('NTTSVD')
             times.append([self._nttsvdTimes[i] for i in range(len(self._nttsvdTimes)) if i not in exclude])
@@ -548,6 +552,44 @@ class Experiment:
         plt.subplots_adjust(wspace=wspace)
         return fig, ax
     
+    def plotRuntimes2(self, nttsvd=True,
+                            nsthosvd=True,
+                            figsize=None,
+                            rotation=None,
+                            ha='center',
+                            ylabelsize=None,
+                            xticksize=None, yticksize=None,
+                            paramsNewLine=False,
+                            hideTitle=False,
+                            testMatrixName=False,
+                            exclude=[]):
+        algNames = []
+        times = [self._nlrtTimes[0]]
+        truncatedSvdList = []
+        if nsthosvd and self._nsthosvdTimes:
+            algNames.append('NSTHOSVD')
+            times.append(self._nsthosvdTimes[0])
+            truncatedSvdList.append(self._nsthosvdTruncatedSvdList[0])
+        if nttsvd and self._nttsvdTimes:
+            algNames.append('NTTSVD')
+            times.append(self._nttsvdTimes[0])
+            truncatedSvdList.append(self._nttsvdTruncatedSvdList[0])
+        fig, ax = plt.subplots(1, 1, figsize=figsize)
+        if testMatrixName:
+            xticks_labels = ['NLRT'] + [f'{algNames[i]},\n' + '\n'.join(truncatedSvd.getName().split(', ')) for i, truncatedSvd in enumerate(truncatedSvdList)]
+        else:
+            xticks_labels = ['NLRT'] + [f'{algNames[i]},\n' + truncatedSvd.getName().split(', ')[0] for i, truncatedSvd in enumerate(truncatedSvdList)]
+        if paramsNewLine:
+            xticks_labels = ['\n('.join(label.split('(')) for label in xticks_labels]
+        ax.set_ylabel('Running time (Second)', size=ylabelsize)
+        ax.tick_params(axis='both', direction='in', right=True, top=True)
+        ax.tick_params(axis='x', rotation=rotation)
+        ax.set_xticks(ticks=range(len(times)))
+        ax.tick_params(axis='y', labelsize=yticksize)
+        ax.set_xticklabels(labels=xticks_labels, size=xticksize, ha=ha)
+        ax.bar(range(0, len(times)), times, edgecolor='black')
+        return fig, ax
+    
     def showApproximations(self,
                            nttsvd=True,
                            nsthosvd=True,
@@ -558,7 +600,8 @@ class Experiment:
                            ncols=3,
                            titlesize=None,
                            wspace=None, hspace=None,
-                           cmap=None): # for HSIs
+                           cmap=None,
+                           exclude=[]): # for HSIs
         approximationsList = [self._tensor]
         titles = ['Original']
         if nttsvd:
@@ -589,6 +632,9 @@ class Experiment:
             else:
                 titles += ['NLRT, ' + truncatedSvd.getName().split(', ')[0] for truncatedSvd in self._nlrtTruncatedSvdList]
             approximationsList.extend([x['X_sthosvd'] for x in self._nlrtApproximations])
+        
+        titles = [x for i, x in enumerate(titles) if i not in exclude]
+        approximationsList = [x for i, x in enumerate(approximationsList) if i not in exclude]
 
         if len(titles) > 1:
             m = math.ceil(len(titles) / ncols)
