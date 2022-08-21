@@ -72,8 +72,8 @@ class Experiment:
                 rel_che = np.max(abs(a - ar)/ np.max(abs(a)))
                 snr = 10 * math.log10(1 / rel_fro)
                 print('%-28s | %12.5f'  % ('time (s.)', times[i]))
-                print('%-28s | %12f'    % ('negative elements (fro)', np.linalg.norm(ar[ar < 0])))
-                print('%-28s | %12f'    % ('negative elements (che)', np.max(abs(ar[ar < 0]), initial=0)))
+                print('%-28s | %12.9f'    % ('negative elements (fro)', np.linalg.norm(ar[ar < 0])))
+                print('%-28s | %12.9f'    % ('negative elements (che)', np.max(abs(ar[ar < 0]), initial=0)))
                 print('%-28s | %12.8f'  % ('negative elements (%)', 100*neg_count/(np.prod(ar.shape))))
                 print('%-28s | %12.10f' % ('relative error (fro)', rel_fro))
                 print('%-28s | %12.10f' % ('relative error (che)', rel_che))
@@ -150,7 +150,7 @@ class Experiment:
                    nsthosvd=True,
                    nlrt=True,
                    verbose=True,
-                   _sleep=10):
+                   _sleep=0):
 
         line = '-' * 36
         algNames = []
@@ -311,10 +311,11 @@ class Experiment:
                         legendloc=None,
                         bbox_to_anchor=None,
                         labelspacing=None,
+                        linewidthList=[],
+                        colors=[],
                         testMatrixName=False,):
         title = 'Distance to nonnegative tensors'
         norms  = ['Chebyshev', 'Frobenius', 'Density']
-        colors = ['C0', 'C1', 'C2']
         infoList = []
         step = 0
         if nsthosvd and self._nsthosvdInfo:
@@ -350,19 +351,28 @@ class Experiment:
                         plt.rcParams['mathtext.bf'] = 'STIXGeneral:bold'
                         for m, xInfo in enumerate(info['X']):
                             itersNum = len(xInfo['frobenius'])
-                            ax[i][j].plot(range(1, itersNum+1), xInfo['frobenius'], f'C{m}', label='$\\mathit{X}$$^{\\rm (i)}_%d$' % m)
+                            color = colors[m] if colors else f'C{m}'
+                            lw = linewidthList[m] if linewidthList else None
+                            ax[i][j].plot(range(1, itersNum+1), xInfo['frobenius'], color, ls='dashed', lw=lw, label='$\\mathit{X}$$^{\\rm (i)}_%d$' % (m + 1))
                         itersNum = len(info['X_sthosvd']['frobenius'])
-                        ax[i][j].plot(range(1, itersNum+1), info['X_sthosvd']['frobenius'], f'C{m+1}', label='$\\mathit{X}$$^{\\rm (i)}_{\\rm NLRT+STHOSVD}$')
+                        color = colors[m+1] if colors else f'C{m+1}'
+                        lw = linewidthList[m+1] if linewidthList else None
+                        ax[i][j].plot(range(1, itersNum+1), info['X_sthosvd']['frobenius'], color, lw=lw, label='$\\mathit{X}$$^{\\rm (i)}_{\\rm NLRT+STHOSVD}$')
                         for info in self._nsthosvdInfo:
                             if 'HMT' in info.getTruncatedSvdName():
                                 convInfo = info.getConvergenceInfo()['frobenius']
-                                ax[i][j].plot(range(1, itersNum+1), convInfo[:itersNum], f'C{m+2}', label='$\\mathit{X}$$^{\\rm (i)}_{\\rm %s}$' % info.getFullAlgName())
+                                color = colors[m+2] if colors else f'C{m+2}'
+                                lw = linewidthList[m+2] if linewidthList else 2.8
+                                ax[i][j].plot(range(1, itersNum+1), convInfo[:itersNum],
+                                              color=color,
+                                              label='$\\mathit{X}$$^{\\rm (i)}_{\\rm %s}$' % info.getFullAlgName(),
+                                              linewidth=lw)
                                 break
                     else:
                         itersNum = len(info['frobenius'])
-                        ax[i][j].plot(range(1, itersNum+1), info['chebyshev'], colors[0], label=norms[0])
-                        ax[i][j].plot(range(1, itersNum+1), info['frobenius'], colors[1], label=norms[1])
-                        ax[i][j].plot(range(1, itersNum+1), info['density'],   colors[2], label=norms[2])
+                        ax[i][j].plot(range(1, itersNum+1), info['chebyshev'], color='C0', label=norms[0])
+                        ax[i][j].plot(range(1, itersNum+1), info['frobenius'], color='C1', label=norms[1])
+                        ax[i][j].plot(range(1, itersNum+1), info['density'],   color='C2', label=norms[2])
                     ax[i][j].set_yscale('log')
                     if yticks is not None:
                         ax[i][j].set_yticks(yticks)
@@ -456,9 +466,12 @@ class Experiment:
                          legendsize=None,
                          legendloc=None,
                          legend2loc=None,
+                         colors=[],
+                         linewidthList1=[],
+                         linewidthList2=[],
+                         differentTicknessRow2=False,
                          testMatrixName=False):
         titles = ['Distance to nonnegative tensors', 'Density of negative elements']
-        colors = ['C0', 'C1', 'C2']
         linestyles = ['solid', 'dashed']
         infoLists = []
         if nsthosvd and self._nsthosvdInfo:
@@ -476,23 +489,26 @@ class Experiment:
                 convInfo = info.getConvergenceInfo()
                 itersNum = len(convInfo['frobenius'])
                 label = info.getTruncatedSvdName()
-                ax[0][k].plot(range(1, itersNum+1), convInfo['frobenius'], color=f'C{i}', linestyle=linestyles[0], label=label)
-                ax[0][k].plot(range(1, itersNum+1), convInfo['chebyshev'], color=f'C{i}', linestyle=linestyles[1])
+                color = colors[i] if colors else f'C{i}'
+                lw1 = linewidthList1[i] if linewidthList1 else None
+                lw2 = linewidthList2[i] if linewidthList2 else None
+                ax[k][0].plot(range(1, itersNum+1), convInfo['frobenius'], color, ls=linestyles[0], lw=lw1, label=label)
+                ax[k][0].plot(range(1, itersNum+1), convInfo['chebyshev'], color, ls=linestyles[1], lw=lw1)
                 if plotDensity:
-                    ax[1][k].plot(range(1, itersNum+1), convInfo['density'], color=f'C{i}', label=label)
-            dummyLines = [ax[0][k].plot([],[], c="black", linestyle=linestyles[i])[0] for i in [0, 1]]
-            legend2 = ax[0][k].legend(dummyLines, ['Frobenius', 'Chebyshev'], loc=legend2loc, fontsize=legendsize)
-            ax[0][k].add_artist(legend2)    
+                    ax[k][1].plot(range(1, itersNum+1), convInfo['density'], color, lw=lw2, label=label)
+            dummyLines = [ax[k][0].plot([],[], c="black", linestyle=linestyles[i])[0] for i in [0, 1]]
+            legend2 = ax[k][0].legend(dummyLines, ['Frobenius', 'Chebyshev'], loc=legend2loc, fontsize=legendsize)
+            ax[k][0].add_artist(legend2)    
             for j in range(1 + plotDensity):
-                ax[j][k].legend(loc=legendloc, fontsize=legendsize)
-                ax[j][k].set_yscale('log')
-                ax[j][k].tick_params(axis='both', labelsize=ticksize)
-                ax[j][k].set_title('$\\bf{%s}$\n%s' % (algName, titles[j]), fontsize=titlesize)
-                ax[j][k].grid()
+                ax[k][j].legend(loc=legendloc, fontsize=legendsize)
+                ax[k][j].set_yscale('log')
+                ax[k][j].tick_params(axis='both', labelsize=ticksize)
+                ax[k][j].set_title('$\\bf{%s}$\n%s' % (algName, titles[j]), fontsize=titlesize)
+                ax[k][j].grid()
             if yticks is not None:
-                ax[0][k].set_yticks(yticks)
+                ax[k][0].set_yticks(yticks)
             if yticks2 is not None and plotDensity:
-                ax[1][k].set_yticks(yticks2) 
+                ax[k][1].set_yticks(yticks2) 
 
         plt.subplots_adjust(wspace=wspace, hspace=hspace)
         if ncols == 1: ax = ax[0] #
@@ -509,7 +525,8 @@ class Experiment:
                            ha='center',
                            ylabelsize=None,
                            titlesize=None,
-                           xticksize=None, yticksize=None,
+                           xticksize=None,
+                           yticksize=None,
                            paramsNewLine=False,
                            hideTitle=False,
                            exclude=[]):
