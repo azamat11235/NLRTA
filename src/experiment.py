@@ -2,6 +2,7 @@ import numpy as np
 import math
 import matplotlib.pyplot as plt
 from sklearn.metrics import r2_score
+from skimage.metrics import structural_similarity
 from time import time, sleep
 
 import algorithms
@@ -70,14 +71,17 @@ class Experiment:
                     print(line)
                 rel_fro = np.linalg.norm(a - ar)/np.linalg.norm(a)
                 rel_che = np.max(abs(a - ar)/ np.max(abs(a)))
-                snr = 10 * math.log10(1 / rel_fro)
+                ssim = 0
+                for band in range(a.shape[0]):
+                    ssim += structural_similarity(a[band], ar[band], data_range=ar[band].max()-ar[band].min())
+                ssim /= a.shape[0]
                 print('%-28s | %12.5f'  % ('time (s.)', times[i]))
-                print('%-28s | %12.9f'    % ('negative elements (fro)', np.linalg.norm(ar[ar < 0])))
-                print('%-28s | %12.9f'    % ('negative elements (che)', np.max(abs(ar[ar < 0]), initial=0)))
+                print('%-28s | %12.9f'  % ('negative elements (fro)', np.linalg.norm(ar[ar < 0])))
+                print('%-28s | %12.9f'  % ('negative elements (che)', np.max(abs(ar[ar < 0]), initial=0)))
                 print('%-28s | %12.8f'  % ('negative elements (%)', 100*neg_count/(np.prod(ar.shape))))
                 print('%-28s | %12.10f' % ('relative error (fro)', rel_fro))
                 print('%-28s | %12.10f' % ('relative error (che)', rel_che))
-                print('%-28s | %12.9f' % ('SNR (dB)', snr))
+                print('%-28s | %12.9f'  % ('SSIM', ssim))
                 print('%-28s | %12.10f' % ('r2_score', r2_score(a.flatten(), ar.flatten())))
                 print('%-28s | %12.2f'  % ('compression', computeCompression(a.shape, ranks[i])))
                 print(line)
@@ -221,7 +225,7 @@ class Experiment:
             if algName == 'NLRT':
                 line = '-' * 108
                 if k: print('\n', line, sep='')
-                print('| %-24s | relative error (fro) | relative error (che) | %8s | r2_score | %9s |' % (algName, 'SNR (dB)', 'X_i'))
+                print('| %-24s | relative error (fro) | relative error (che) | %8s | r2_score | %9s |' % (algName, 'SSIM', 'X_i'))
                 print(line)
                 for j in range(len(self._nlrtApproximations)):
                     X = self._nlrtApproximations[j]['X']
@@ -229,7 +233,10 @@ class Experiment:
                     for i, x in enumerate(X + [X_sthosvd]):
                         fro = np.linalg.norm(self._tensor - x) / tensorFro
                         che = np.max(abs(self._tensor - x)) / tensorChe
-                        snr = 10 * math.log10(1 / fro)
+                        ssim = 0
+                        for band in range(self._tensor.shape[0]):
+                            ssim += structural_similarity(self._tensor[band], x[band], data_range=x[band].max()-x[band].min())
+                        ssim /= self._tensor.shape[0]
                         r2 = r2_score(self._tensor.flatten(), x.flatten())
                         truncatedSvdName = ' ' * 24
                         if i == 0:
@@ -237,18 +244,22 @@ class Experiment:
                         tensorName = 'X_%d' % i
                         if i == len(X):
                             tensorName = 'X_sthosvd'
-                        print('| %-24s | %2.18f | %20.18f | %8.5f | %8f | %9s |' % (truncatedSvdName, fro, che, snr, r2, tensorName))
+                        print('| %-24s | %2.18f | %20.18f | %8.5f | %8f | %9s |' % (truncatedSvdName, fro, che, ssim, r2, tensorName))
                     print(line)
             else:
-                print('| %-24s | relative error (fro) | relative error (che) | %8s | r2_score |' % (algName, 'SNR (dB)'))
+                print('| %-24s | relative error (fro) | relative error (che) | %8s | r2_score |' % (algName, 'SSIM'))
                 print(line)
                 for i in range(len(approximationsList[k])):
                     approximation = approximationsList[k][i]
                     fro = np.linalg.norm(self._tensor - approximation) / tensorFro
                     che = np.max(abs(self._tensor - approximation)) / tensorChe
-                    snr = 10 * math.log10(1 / fro)
+                    ssim = 0
+                    for band in range(self._tensor.shape[0]):
+                        ssim += structural_similarity(self._tensor[band], approximation[band],
+                                                 data_range=approximation[band].max()-approximation[band].min())
+                    ssim /= self._tensor.shape[0]
                     r2 = r2_score(self._tensor.flatten(), approximation.flatten())
-                    print('| %-24s | %2.18f | %20.18f | %8.5f | %8f |' % (truncatedSvdList[k][i].getName(), fro, che, snr, r2))
+                    print('| %-24s | %2.18f | %20.18f | %8.5f | %8f |' % (truncatedSvdList[k][i].getName(), fro, che, ssim, r2))
                 print(line)
     
     def printNegativePart(self, nttsvd=True, nsthosvd=True, nlrt=True):
@@ -301,7 +312,6 @@ class Experiment:
     def plotConvergence(self,
                         nttsvd=True,
                         nsthosvd=True,
-                        nlrt=True,
                         figsize=None,
                         yticks=None,
                         wspace=None, hspace=None,
@@ -324,8 +334,6 @@ class Experiment:
         if nttsvd and self._nttsvdInfo:
             infoList.extend(self._nttsvdInfo)
             step += 1
-        if nlrt and self._nlrtInfo:
-            infoList.extend(self._nlrtInfo)
 
         if len(infoList) > 0:
             nInfo = len(infoList)
@@ -345,34 +353,10 @@ class Experiment:
                     info = infoList[k + kk * nInfo]
                     algName = info.getFullAlgName() if testMatrixName else ',\\ '.join(info.getFullAlgName().split(', ')[:2])
                     info = info.getConvergenceInfo()
-                    if 'NLRT' in algName:
-                        plt.rcParams['mathtext.fontset'] = 'custom'
-                        plt.rcParams['mathtext.it'] = 'STIXGeneral:italic:bold'
-                        plt.rcParams['mathtext.bf'] = 'STIXGeneral:bold'
-                        for m, xInfo in enumerate(info['X']):
-                            itersNum = len(xInfo['frobenius'])
-                            color = colors[m] if colors else f'C{m}'
-                            lw = linewidthList[m] if linewidthList else None
-                            ax[i][j].plot(range(1, itersNum+1), xInfo['frobenius'], color, ls='dashed', lw=lw, label='$\\mathit{X}$$^{\\rm (i)}_%d$' % (m + 1))
-                        itersNum = len(info['X_sthosvd']['frobenius'])
-                        color = colors[m+1] if colors else f'C{m+1}'
-                        lw = linewidthList[m+1] if linewidthList else None
-                        ax[i][j].plot(range(1, itersNum+1), info['X_sthosvd']['frobenius'], color, lw=lw, label='$\\mathit{X}$$^{\\rm (i)}_{\\rm NLRT+STHOSVD}$')
-                        for info in self._nsthosvdInfo:
-                            if 'HMT' in info.getTruncatedSvdName():
-                                convInfo = info.getConvergenceInfo()['frobenius']
-                                color = colors[m+2] if colors else f'C{m+2}'
-                                lw = linewidthList[m+2] if linewidthList else 2.8
-                                ax[i][j].plot(range(1, itersNum+1), convInfo[:itersNum],
-                                              color=color,
-                                              label='$\\mathit{X}$$^{\\rm (i)}_{\\rm %s}$' % info.getFullAlgName(),
-                                              linewidth=lw)
-                                break
-                    else:
-                        itersNum = len(info['frobenius'])
-                        ax[i][j].plot(range(1, itersNum+1), info['chebyshev'], color='C0', label=norms[0])
-                        ax[i][j].plot(range(1, itersNum+1), info['frobenius'], color='C1', label=norms[1])
-                        ax[i][j].plot(range(1, itersNum+1), info['density'],   color='C2', label=norms[2])
+                    itersNum = len(info['frobenius'])
+                    ax[i][j].plot(range(1, itersNum+1), info['chebyshev'], color='C0', label=norms[0])
+                    ax[i][j].plot(range(1, itersNum+1), info['frobenius'], color='C1', label=norms[1])
+                    ax[i][j].plot(range(1, itersNum+1), info['density'],   color='C2', label=norms[2])
                     ax[i][j].set_yscale('log')
                     if yticks is not None:
                         ax[i][j].set_yticks(yticks)
@@ -387,8 +371,6 @@ class Experiment:
                         title_ = '$\\mathbf{%s,\\ SVD_r}$\n%s' % (algName.split(',')[0], title)
                     else:
                         title_ = '$\\mathbf{%s}$\n%s' % (algName, title)
-                    if 'NLRT' in algName:
-                        title_ = '$\\mathbf{NLRT}$\n%s' % title
                     ax[i][j].set_title(title_, fontsize=titlesize)
             if nrows == 1: ax = ax[0] #
             if ncols == 1: ax = ax[0] #
@@ -467,9 +449,12 @@ class Experiment:
                          legendloc=None,
                          legend2loc=None,
                          colors=[],
-                         linewidthList1=[],
-                         linewidthList2=[],
-                         differentTicknessRow2=False,
+                         linewidthFro0=[],
+                         linewidthFro1=[],
+                         linewidthChe0=[],
+                         linewidthChe1=[],
+                         linewidthDensity0=[],
+                         linewidthDensity1=[],
                          testMatrixName=False):
         titles = ['Distance to nonnegative tensors', 'Density of negative elements']
         linestyles = ['solid', 'dashed']
@@ -490,12 +475,18 @@ class Experiment:
                 itersNum = len(convInfo['frobenius'])
                 label = info.getTruncatedSvdName()
                 color = colors[i] if colors else f'C{i}'
-                lw1 = linewidthList1[i] if linewidthList1 else None
-                lw2 = linewidthList2[i] if linewidthList2 else None
-                ax[k][0].plot(range(1, itersNum+1), convInfo['frobenius'], color, ls=linestyles[0], lw=lw1, label=label)
-                ax[k][0].plot(range(1, itersNum+1), convInfo['chebyshev'], color, ls=linestyles[1], lw=lw1)
+                if k == 0:
+                    lwFro = linewidthFro0[i] if linewidthFro0 else None
+                    lwChe = linewidthChe0[i] if linewidthChe0 else None
+                    lwDensity = linewidthDensity0[i] if linewidthDensity0 else None
+                else:
+                    lwFro = linewidthFro1[i] if linewidthFro1 else None
+                    lwChe = linewidthChe1[i] if linewidthChe1 else None
+                    lwDensity = linewidthDensity1[i] if linewidthDensity1 else None
+                ax[k][0].plot(range(1, itersNum+1), convInfo['frobenius'], color, ls=linestyles[0], lw=lwFro, label=label)
+                ax[k][0].plot(range(1, itersNum+1), convInfo['chebyshev'], color, ls=linestyles[1], lw=lwChe)
                 if plotDensity:
-                    ax[k][1].plot(range(1, itersNum+1), convInfo['density'], color, lw=lw2, label=label)
+                    ax[k][1].plot(range(1, itersNum+1), convInfo['density'], color, lw=lwDensity, label=label)
             dummyLines = [ax[k][0].plot([],[], c="black", linestyle=linestyles[i])[0] for i in [0, 1]]
             legend2 = ax[k][0].legend(dummyLines, ['Frobenius', 'Chebyshev'], loc=legend2loc, fontsize=legendsize)
             ax[k][0].add_artist(legend2)    
@@ -513,6 +504,66 @@ class Experiment:
         plt.subplots_adjust(wspace=wspace, hspace=hspace)
         if ncols == 1: ax = ax[0] #
         
+        return fig, ax
+    
+    def plotNsthosvdVsNlrt(self,
+                            figsize=None,
+                            yticks=None,
+                            titlesize=None,
+                            ticksize=None,
+                            legendsize=None,
+                            legendloc=None,
+                            bbox_to_anchor=None,
+                            labelspacing=None,
+                            linewidthList=None,
+                            colors=None,
+                            plotXi=False,
+                            testMatrixName=False):
+        if not self._nlrtInfo:
+            return
+        fig, ax = plt.subplots(1, 1, figsize=figsize)
+        for info in self._nlrtInfo:
+            algName = info.getFullAlgName() if testMatrixName else ',\\ '.join(info.getFullAlgName().split(', ')[:2])
+            info = info.getConvergenceInfo()
+            plt.rcParams['mathtext.fontset'] = 'custom'
+            plt.rcParams['mathtext.it'] = 'STIXGeneral:italic:bold'
+            plt.rcParams['mathtext.bf'] = 'STIXGeneral:bold'
+            if plotXi:
+                for m, xInfo in enumerate(info['X']):
+                    itersNum = len(xInfo['frobenius'])
+                    color = colors[m] if colors else f'C{m}'
+                    lw = linewidthList[m] if linewidthList else None
+                    ax.plot(range(1, itersNum+1), xInfo['frobenius'], color, ls='dashed', lw=lw, label='$\\mathit{X}$$^{\\rm (i)}_%d$' % (m + 1))
+            else:
+                m = -1
+            itersNum = len(info['X_sthosvd']['frobenius'])
+            color = colors[m+1] if colors else f'C{m+1}'
+            lw = linewidthList[m+1] if linewidthList else None
+            label = '$\\mathit{X}$$^{\\rm (i)}_{\\rm NLRT+STHOSVD}$' if plotXi else 'NLRT'
+            ax.plot(range(1, itersNum+1), info['X_sthosvd']['frobenius'], color, lw=lw, label=label)
+            for info in self._nsthosvdInfo:
+                if 'HMT' in info.getTruncatedSvdName():
+                    convInfo = info.getConvergenceInfo()['frobenius']
+                    color = colors[m+2] if colors else f'C{m+2}'
+                    lw = linewidthList[m+2] if linewidthList else 2.8
+                    label = '$\\mathit{X}$$^{\\rm (i)}_{\\rm %s}$' % info.getFullAlgName() if plotXi else info.getFullAlgName()
+                    ax.plot(range(1, itersNum+1), convInfo[:itersNum],
+                                    color=color,
+                                    label=label,
+                                    linewidth=lw)
+                    break
+        ax.set_yscale('log')
+        if yticks is not None:
+            ax.set_yticks(yticks)
+        ax.legend(loc=legendloc,
+                  fontsize=legendsize,
+                  bbox_to_anchor=bbox_to_anchor,
+                  labelspacing=labelspacing)
+        plt.rcParams['mathtext.fontset'] = 'dejavusans'
+        ax.tick_params(axis='both', labelsize=ticksize)
+        ax.grid()
+        title_ = '$\\mathbf{NSTHOSVD\ vs\ NLRT}$\n%s' % 'Distance to nonnegative tensors'
+        ax.set_title(title_, fontsize=titlesize)
         return fig, ax
     
     def plotRuntimes(self, nttsvd=True,
@@ -643,7 +694,7 @@ class Experiment:
                 approximationsList.extend(self._nsthosvdApproximations)
         if nlrt and self._nlrtApproximations:
             if len(self._nlrtApproximations) == 1:
-                titles += ['NLRT + STHOSVD']
+                titles += ['NLRT']
             elif testMatrixName:
                 titles += ['NLRT, ' + truncatedSvd.getName() for truncatedSvd in self._nlrtTruncatedSvdList]
             else:
